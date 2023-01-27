@@ -1,0 +1,30 @@
+{
+  "name": "lyavon/tgbot",
+  "version": "0.1",
+  "type": "library",
+  "description": "Telegram bot",
+  "homepage": "https://github.com/Lyavon/php_tgbot",
+  "license": "GPL3v3",
+  "authors": [
+    {
+      "name": "Leonid Ragunovich",
+      "email": "leonid.ragunovich@mail.ru",
+      "role": "Developer"
+    }
+  ],
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/Lyavon/php_logging"
+    }
+  ],
+  "require": {
+    "lyavon/logging": "dev-master",
+    "psr/log": "^3.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Lyavon\\TgBot\\": "TgBot"
+    }
+  }
+}
