@@ -11,24 +11,31 @@ class TelegramBot implements LoggerAwareInterface
 {
   use LoggerAwareTrait;
 
-  
   protected string $token;
 
-  protected string $updateUrl;
-  protected string $messageUrl;
+  protected string $fileUrl;
+  protected string $getFileUrl;
+  protected string $getUpdatesUrl;
+  protected string $sendMessageUrl;
+  protected string $sendVideoUrl;
+
 
   protected ?int $updateOffset;
   protected string $allowedUpdates;
 
   protected array $messageFilters;
   protected array $callbackQueryFilters;
+  protected array $chatMemberFilters;
 
 
   public function __construct(string $token, array $allowedUpdates = [])
   {
     $this->allowedUpdates = json_encode($allowedUpdates, JSON_OBJECT_AS_ARRAY);
-    $this->updateUrl = 'https://api.telegram.org/bot' . $token . '/getUpdates';
-    $this->messageUrl = 'https://api.telegram.org/bot' . $token . '/sendMessage?';
+    $this->getUppdatesUrl = 'https://api.telegram.org/bot' . $token . '/getUpdates';
+    $this->sendMessageUrl = 'https://api.telegram.org/bot' . $token . '/sendMessage?';
+    $this->sendVideoUrl = 'https://api.telegram.org/bot' . $token . '/sendVideo?';
+    $this->getFileUrl = 'https://api.telegram.org/bot' . $token . '/getFile?';
+    $this->fileDownloadUrl = 'https://api.telegram.org/file/bot' . $token . '/';
 
     $this->messageFilters = [];
     $this->callbackQueryFilters = [];
@@ -56,7 +63,7 @@ class TelegramBot implements LoggerAwareInterface
     if (!is_null($this->updateOffset))
       $queryParameters['offset'] = strval($this->updateOffset);
 
-    $request = $this->updateUrl
+    $request = $this->getUpdatesUrl
       . ($queryParameters ? '?' . http_build_query($queryParameters) : '');
     $response = file_get_contents($request);
     if (!$response) {
@@ -230,7 +237,7 @@ class TelegramBot implements LoggerAwareInterface
       $queryParameters['reply_markup'] =
         json_encode($markup, JSON_UNESCAPED_UNICODE);
 
-    $url = $this->messageUrl . http_build_query($queryParameters);
+    $url = $this->sendMessageUrl . http_build_query($queryParameters);
     $response = file_get_contents($url);
     if (!$response) {
       $this->logger->error(
@@ -262,6 +269,109 @@ class TelegramBot implements LoggerAwareInterface
       ],
     );
     return false;
+  }
+
+  /*
+   * videoId can be either url or file id on telegram servers. Only mp4.
+   */
+  public function sendVideo(string $chatId, string $videoId): bool
+  {
+    $request = $this->sendVideoUrl . http_build_query(
+      'chat_id' => $chatId,
+      'video' => $videoId
+    );
+    $response = file_get_contents($request);
+    if (!$response) {
+      $this->logger->error(
+        "Can't sent video {videoId} to {chatId}",
+        [
+          'videoId' => $videoId,
+          'chatId' => $chatId,
+        ],
+      );
+      return false;
+    }
+    $decodedResponse = json_decode($response, JSON_OBJECT_AS_ARRAY);
+    if ($decodedResponse['ok'] === true) {
+      $this->logger->info(
+        'Video {videoId} is successfully sent to {chatId}',
+        [
+          'videoId' => $videoId,
+          'chatId' => $chatId,
+        ],
+      );
+      return true;
+    }
+
+    $this->logger->error(
+      "Can't sent message {videoId} to {chatId}",
+      [
+        'videoId' => $videoId,
+        'chatId' => $chatId,
+      ],
+    );
+    return false;
+  }
+
+  public function downloadFile(string $fileId, string $where): bool
+  {
+    $request = $this->getFileUrl . http_build_query(
+      [
+        'file_id' => $fileId,
+      ],
+    );
+    $response = file_get_contents($request);
+    if (!$response) {
+      $this->logger->error(
+        "Can't obtain info about file {fileId}",
+        [
+          'fileId' => $fileId,
+        ],
+      );
+      return false;
+    }
+    $decodedResponse = json_decode($response, JSON_OBJECT_AS_ARRAY);
+    if ($decodedResponse['ok'] != true) {
+      $this->logger->error(
+        "Can't obtain info about file {fileId}",
+        [
+          'fileId' => $fileId,
+        ],
+      );
+      return false;
+    }
+
+    $this->logger->info(
+      "Obtained info about file {fileId} ({result})",
+      [
+        'fileId' => $fileId,
+        'result' => print_r($file['result'], true),
+      ],
+    );
+
+    $request = $this->fileDownloadUrl . $file['result']['file_path'];
+    $rc = file_put_contents($where, fopen($request, 'r'));
+    if (!$rc) {
+      $this->logger->error(
+        "Can't save file {fileId} {fileDownloadUrl} to {where}",
+        [
+          'fileId' => $fileId,
+          'fileDownloadUrl' => $request,
+          'where' => $where,
+        ],
+      );
+      return false;
+    }
+
+    $this->logger->info(
+      "Saved file {fileId} {fileDownloadUrl} to {where}",
+      [
+        'fileId' => $fileId,
+        'fileDownloadUrl' => $request,
+        'where' => $where,
+      ],
+    );
+    return true;
   }
 }
 
