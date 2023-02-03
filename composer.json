@@ -12,14 +12,7 @@
       "role": "Developer"
     }
   ],
-  "repositories": [
-    {
-      "type": "vcs",
-      "url": "https://github.com/Lyavon/php_logging"
-    }
-  ],
   "require": {
-    "lyavon/logging": "dev-master",
     "psr/log": "^3.0"
   },
   "autoload": {
