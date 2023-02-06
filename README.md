@@ -43,6 +43,8 @@ $bot = new TelegramBot($token); // $allowedUpdates is optional, an array of
                                 // strings repreenting update types should be
                                 // provided, defaults are described in the
                                 // Telegram Bot API
+                                // $logger is optional, NullLogger is used by
+                                // default
 
 # NullLogger is used if custom one is not provided. TelegramBot implements
 # LoggerAwareInterface.
@@ -105,6 +107,7 @@ Filter can be added with the __registerMessageFilter__, e.g.:
 
 ```php
 <?php
+
 $bot->registerMessageFilter(function(array $message) use ($bot) {
     if (!$bot->sendMessage($message['from']['chat_id'], $message['text']))
         throw new Exception("Can't send message");
@@ -126,5 +129,8 @@ checks and handles supported upates until external termination or uncaught
 internal error.
 
 ```php
+<?php
+
 $bot->mainloop();
+
 ```

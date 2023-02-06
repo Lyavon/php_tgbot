@@ -3,6 +3,7 @@
 namespace Lyavon\TgBot;
 
 use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerInterFace;
 use Psr\Log\LoggerAwareTrait;
 use Psr\Log\NullLogger;
 
@@ -27,10 +28,15 @@ class TelegramBot implements LoggerAwareInterface
     protected array $chatMemberFilters;
 
 
-    public function __construct(string $token, array $allowedUpdates = [])
+    public function __construct(
+        string $token,
+        array $allowedUpdates = [],
+        LoggerInterface $logger = new NullLogger(),
+    )
     {
+        $this->token = $token;
         $this->allowedUpdates = json_encode($allowedUpdates, JSON_OBJECT_AS_ARRAY);
-        $this->getUppdatesUrl = 'https://api.telegram.org/bot' . $token . '/getUpdates';
+        $this->getUpdatesUrl = 'https://api.telegram.org/bot' . $token . '/getUpdates';
         $this->sendMessageUrl = 'https://api.telegram.org/bot' . $token . '/sendMessage?';
         $this->sendVideoUrl = 'https://api.telegram.org/bot' . $token . '/sendVideo?';
         $this->getFileUrl = 'https://api.telegram.org/bot' . $token . '/getFile?';
@@ -41,7 +47,7 @@ class TelegramBot implements LoggerAwareInterface
         $this->chatMemberFilters = [];
         $this->updateOffset = null;
 
-        $this->logger = new NullLogger();
+        $this->logger = $logger;
     }
 
     public function __destruct()
@@ -150,11 +156,11 @@ class TelegramBot implements LoggerAwareInterface
                 }
             }
             return $this->onMessage($message);
-        } catch (Exception $e) {
-            $this->logger(
+        } catch (\Exception $e) {
+            $this->logger->error(
                 "Exception during message filtering occured ({exception})",
                 [
-                  'exception' => $e
+                  'exception' => $e->getMessage(),
                 ],
             );
             return false;
@@ -181,11 +187,11 @@ class TelegramBot implements LoggerAwareInterface
                 }
             }
             return $this->onCallbackQuery($message);
-        } catch (Exception $e) {
-            $this->logger(
+        } catch (\Exception $e) {
+            $this->logger->error(
                 "Exception during calback query filtering occured ({exception})",
                 [
-                  'exception' => $e
+                  'exception' => $e->getMessage(),
                 ],
             );
             return false;
@@ -212,11 +218,11 @@ class TelegramBot implements LoggerAwareInterface
                 }
             }
             return $this->onChatMember($message);
-        } catch (Exception $e) {
-            $this->logger(
+        } catch (\Exception $e) {
+            $this->logger->error(
                 "Exception during chat member filtering occured ({exception})",
                 [
-                  'exception' => $e
+                  'exception' => $e->getMessage(),
                 ],
             );
             return false;
