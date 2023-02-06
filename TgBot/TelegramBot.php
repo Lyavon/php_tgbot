@@ -7,11 +7,11 @@ use Psr\Log\LoggerInterFace;
 use Psr\Log\LoggerAwareTrait;
 use Psr\Log\NullLogger;
 
+use Lyavon\TgBot\TelegramBotError;
+
 class TelegramBot implements LoggerAwareInterface
 {
     use LoggerAwareTrait;
-
-    protected string $token;
 
     protected string $fileUrl;
     protected string $getFileUrl;
@@ -34,7 +34,6 @@ class TelegramBot implements LoggerAwareInterface
         LoggerInterface $logger = new NullLogger(),
     )
     {
-        $this->token = $token;
         $this->allowedUpdates = json_encode($allowedUpdates, JSON_OBJECT_AS_ARRAY);
         $this->getUpdatesUrl = 'https://api.telegram.org/bot' . $token . '/getUpdates';
         $this->sendMessageUrl = 'https://api.telegram.org/bot' . $token . '/sendMessage?';
@@ -48,17 +47,6 @@ class TelegramBot implements LoggerAwareInterface
         $this->updateOffset = null;
 
         $this->logger = $logger;
-    }
-
-    public function __destruct()
-    {
-        if ($this->updateOffset === null) {
-            return;
-        }
-        file_put_contents(
-            '/tmp/bot_' . $this->token,
-            strval($this->updateOffset),
-        );
     }
 
     protected function fetchUpdates(): array|false
@@ -160,7 +148,7 @@ class TelegramBot implements LoggerAwareInterface
             $this->logger->error(
                 "Exception during message filtering occured ({exception})",
                 [
-                  'exception' => $e->getMessage(),
+                  'exception' => $e,
                 ],
             );
             return false;
@@ -191,7 +179,7 @@ class TelegramBot implements LoggerAwareInterface
             $this->logger->error(
                 "Exception during calback query filtering occured ({exception})",
                 [
-                  'exception' => $e->getMessage(),
+                  'exception' => $e,
                 ],
             );
             return false;
@@ -222,7 +210,7 @@ class TelegramBot implements LoggerAwareInterface
             $this->logger->error(
                 "Exception during chat member filtering occured ({exception})",
                 [
-                  'exception' => $e->getMessage(),
+                  'exception' => $e,
                 ],
             );
             return false;
@@ -239,7 +227,8 @@ class TelegramBot implements LoggerAwareInterface
         string $chatId,
         string|Stringable $text,
         array $markup=[],
-    ): bool {
+    ): void
+    {
         $queryParameters = [
           'chat_id' => $chatId,
           'text' => $text,
@@ -251,42 +240,29 @@ class TelegramBot implements LoggerAwareInterface
 
         $url = $this->sendMessageUrl . http_build_query($queryParameters);
         $response = file_get_contents($url);
-        if (!$response) {
-            $this->logger->error(
-                "Can't sent message ({text}) to {chatId}",
-                [
-                  'text' => $text,
-                  'chatId' => $chatId,
-                ],
+        if (!$response)
+            throw new TelegramBotError(
+                "Can't send message ($text) to $chatId",
             );
-            return false;
-        }
         $decodedResponse = json_decode($response, JSON_OBJECT_AS_ARRAY);
-        if ($decodedResponse['ok'] === true) {
-            $this->logger->info(
-                'Message ({text}) is successfully sent to {chatId}',
-                [
-                  'text' => $text,
-                  'chatId' => $chatId,
-                ],
+        if ($decodedResponse['ok'] !== true)
+            throw new TelegramBotError(
+                "Can't send message ($text) to $chatId",
             );
-            return true;
-        }
 
-        $this->logger->error(
-            "Can't sent message ({text}) to {chatId}",
+        $this->logger->info(
+            'Message ({text}) is successfully sent to {chatId}',
             [
               'text' => $text,
               'chatId' => $chatId,
             ],
         );
-        return false;
     }
 
     /*
      * videoId can be either url or file id on telegram servers. Only mp4.
      */
-    public function sendVideo(string $chatId, string $videoId): bool
+    public function sendVideo(string $chatId, string $videoId): void
     {
         $request = $this->sendVideoUrl . http_build_query(
             [
@@ -295,39 +271,26 @@ class TelegramBot implements LoggerAwareInterface
             ],
         );
         $response = file_get_contents($request);
-        if (!$response) {
-            $this->logger->error(
-                "Can't sent video {videoId} to {chatId}",
-                [
-                  'videoId' => $videoId,
-                  'chatId' => $chatId,
-                ],
+        if (!$response)
+            throw new TelegramBotError(
+                "Can't sent video $videoId to $chatId",
             );
-            return false;
-        }
         $decodedResponse = json_decode($response, JSON_OBJECT_AS_ARRAY);
-        if ($decodedResponse['ok'] === true) {
-            $this->logger->info(
-                'Video {videoId} is successfully sent to {chatId}',
-                [
-                  'videoId' => $videoId,
-                  'chatId' => $chatId,
-                ],
+        if ($decodedResponse['ok'] !== true)
+            throw new TelegramBotError(
+                "Can't sent video $videoId to $chatId",
             );
-            return true;
-        }
 
-        $this->logger->error(
-            "Can't sent message {videoId} to {chatId}",
+        $this->logger->info(
+            'Video {videoId} is successfully sent to {chatId}',
             [
               'videoId' => $videoId,
               'chatId' => $chatId,
             ],
         );
-        return false;
     }
 
-    public function downloadFile(string $fileId, string $where): bool
+    public function downloadFile(string $fileId, string $where): void
     {
         $request = $this->getFileUrl . http_build_query(
             [
@@ -335,25 +298,16 @@ class TelegramBot implements LoggerAwareInterface
             ],
         );
         $response = file_get_contents($request);
-        if (!$response) {
-            $this->logger->error(
-                "Can't obtain info about file {fileId}",
-                [
-                  'fileId' => $fileId,
-                ],
+        if (!$response)
+            throw new TelegramBotError(
+                "Can't obtain info about file $fileId",
             );
-            return false;
-        }
+
         $decodedResponse = json_decode($response, JSON_OBJECT_AS_ARRAY);
-        if ($decodedResponse['ok'] != true) {
-            $this->logger->error(
-                "Can't obtain info about file {fileId}",
-                [
-                  'fileId' => $fileId,
-                ],
+        if ($decodedResponse['ok'] !== true)
+            throw new TelegramBotError(
+                "Can't obtain info about file $fileId",
             );
-            return false;
-        }
 
         $this->logger->info(
             "Obtained info about file {fileId} ({result})",
@@ -365,17 +319,10 @@ class TelegramBot implements LoggerAwareInterface
 
         $request = $this->fileDownloadUrl . $file['result']['file_path'];
         $rc = file_put_contents($where, fopen($request, 'r'));
-        if (!$rc) {
-            $this->logger->error(
-                "Can't save file {fileId} {fileDownloadUrl} to {where}",
-                [
-                  'fileId' => $fileId,
-                  'fileDownloadUrl' => $request,
-                  'where' => $where,
-                ],
+        if (!$rc)
+            throw new TelegramBotError(
+                "Can't save file $fileId ($request) to $where",
             );
-            return false;
-        }
 
         $this->logger->info(
             "Saved file {fileId} {fileDownloadUrl} to {where}",
@@ -385,6 +332,5 @@ class TelegramBot implements LoggerAwareInterface
               'where' => $where,
             ],
         );
-        return true;
     }
 }

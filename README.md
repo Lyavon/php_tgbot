@@ -56,8 +56,9 @@ $bot = new TelegramBot($token); // $allowedUpdates is optional, an array of
 ### Sending messages
 
 Messages can be sent with _public function sendMessage(string $chatId,
-string|Stringable $text, array $markup = []): bool_. __$markup__ is an array to be
-json-encoded with any content supported by telegram Bot API. True indicates success.
+string|Stringable $text, array $markup = []): void_. __$markup__ is an array to
+be json-encoded with any content supported by telegram Bot API. Throws
+__TelegramBotError__ on error (__RuntimeError__).
 
 ```php
 <?php
@@ -69,8 +70,9 @@ $bot->sendMessage('myTelegramId', 'Hello bot world!');
 ### Sending videos
 
 Messages can be sent with _public function sendVideo(string $chatId, string
-$videoId): bool_. $videoId can be either URL or video id on the telegram server. Only
-mp4 in supported for now in the Telegram API. True indicates success.
+$videoId): void_. $videoId can be either URL or video id on the telegram
+server. Only mp4 in supported for now in the Telegram API. Throws
+__TelegramBotError__ on error (__RuntimeError__).
 
 ```php
 <?php
@@ -82,9 +84,9 @@ $bot->sendVideo('myTelegramId', 'https://myserver.xyz/coolvideo.mp4');
 ### Downloading files from Telegram servers
 
 Files from the Telegram servers can be downloaded with _public function
-downloadFile(string $fileId, string $where): bool_. __$fileId__ is the resourse
+downloadFile(string $fileId, string $where): void_. __$fileId__ is the resourse
 id on a Telegram server. __$where__ represents local path and should end with
-the file name. True indicates success.
+the file name. Throws __TelegramBotError__ on error (__RuntimeError__).
 
 ```php
 <?php
@@ -109,8 +111,7 @@ Filter can be added with the __registerMessageFilter__, e.g.:
 <?php
 
 $bot->registerMessageFilter(function(array $message) use ($bot) {
-    if (!$bot->sendMessage($message['from']['chat_id'], $message['text']))
-        throw new Exception("Can't send message");
+    $bot->sendMessage($message['from']['chat_id'], $message['text']);
     return true;
 });
 
