@@ -110,7 +110,7 @@ class TelegramBot implements LoggerAwareInterface
                     $type = 'callback_query';
                     $update = $update['callback_query'];
                     $rc = $this->dispatchCallbackQuery($update);
-                } elseif (array_key_exists('chat_member')) {
+                } elseif (array_key_exists('chat_member', $update)) {
                     $type = 'chat_member';
                     $update = $update['chat_member'];
                     $rc = $this->dispatchChatMember($update);

@@ -2,4 +2,4 @@
 
 namespace Lyavon\TgBot;
 
-class TelegramBotError extends RuntimeException {}
+class TelegramBotError extends \RuntimeException {}
