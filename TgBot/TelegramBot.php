@@ -29,9 +29,6 @@ class TelegramBot implements LoggerAwareInterface
     protected array $callbackQueryFilters;
     protected array $chatMemberFilters;
 
-    protected array $keyboards;
-    protected array $inlineKeyboards;
-
     protected MediaCache $mediaCache;
 
     public function __construct(
@@ -52,9 +49,6 @@ class TelegramBot implements LoggerAwareInterface
         $this->callbackQueryFilters = [];
         $this->chatMemberFilters = [];
         $this->updateOffset = null;
-
-        $this->keyboards = [];
-        $this->inlineKeyboards = [];
 
         $this->logger = $logger;
         $this->mediaCache = $mediaCache;
@@ -294,21 +288,13 @@ class TelegramBot implements LoggerAwareInterface
         $options['chat_id'] = $chatId;
         $options['text'] = $text;
         if ($markup) {
-            if (is_a($markup, 'array')) {
-                $options['reply_markup'] =
-                  json_encode($markup, JSON_UNESCAPED_UNICODE);
-            } elseif (is_a($markup, 'string')) {
-                if (array_has_key($markup)) {
-                    $options = $this->keyboards[$markup];
-                } else {
-                    $this->logger->error(
-                        "No keyboard corresponding to {keyboard}",
-                        [
-                            'keyboard' => $markup,
-                        ],
-                    );
-                }
-            }
+            if (is_array($markup))
+                $options['reply_markup'] = json_encode(
+                    $markup,
+                    JSON_UNESCAPED_UNICODE,
+                );
+            else
+                $options['reply_markup'] = $markup;
         }
 
         $response = $this->send(
@@ -338,41 +324,35 @@ class TelegramBot implements LoggerAwareInterface
         }
 
         if ($markup) {
-            if (is_a($markup, 'array')) {
-                $options['reply_markup'] =
-                  json_encode($markup, JSON_UNESCAPED_UNICODE);
-            } elseif (is_a($markup, 'string')) {
-                if (array_has_key($markup)) {
-                    $options['reply_markup'] = $this->keyboards[$markup];
-                } else {
-                    $this->logger->error(
-                        "No keyboard corresponding to {keyboard}",
-                        [
-                            'keyboard' => $markup,
-                        ],
-                    );
-                }
-            }
+            if (is_array($markup))
+                $options['reply_markup'] = json_encode(
+                    $markup,
+                    JSON_UNESCAPED_UNICODE,
+                );
+            else
+                $options['reply_markup'] = $markup;
         }
 
         $cachedId = ($this->mediaCache)($imgId);
-        if ($cachedId)
+        if ($cachedId) {
             $options['photo'] = $cachedId;
-        elseif (!file_exists($imgId))
+        } elseif (!file_exists($imgId)) {
             $options['photo'] = $imgId;
-        else
+        } else {
             $options['photo'] = new \CURLFile(
                 $imgId,
                 mime_content_type($imgId),
                 basename($imgId),
             );
+        }
 
         $response = $this->send(
             $this->sendPhotoUrl,
             $options,
         );
-        if (is_a($options['photo'], \CURLFile::class))
+        if (is_a($options['photo'], \CURLFile::class)) {
             $this->mediaCache->write($imgId, $response['photo'][0]['file_id']);
+        }
 
         $this->logger->info(
             'Photo ({img}) is successfully sent to {chatId}',
@@ -396,41 +376,35 @@ class TelegramBot implements LoggerAwareInterface
         }
 
         if ($markup) {
-            if (is_a($markup, 'array')) {
-                $options['reply_markup'] =
-                  json_encode($markup, JSON_UNESCAPED_UNICODE);
-            } elseif (is_a($markup, 'string')) {
-                if (array_has_key($markup)) {
-                    $options['reply_markup'] = $this->keyboards[$markup];
-                } else {
-                    $this->logger->error(
-                        "No keyboard corresponding to {keyboard}",
-                        [
-                            'keyboard' => $markup,
-                        ],
-                    );
-                }
-            }
+            if (is_array($markup))
+                $options['reply_markup'] = json_encode(
+                    $markup,
+                    JSON_UNESCAPED_UNICODE,
+                );
+            else
+                $options['reply_markup'] = $markup;
         }
 
         $cachedId = ($this->mediaCache)($videoId);
-        if ($cachedId)
+        if ($cachedId) {
             $options['video'] = $cachedId;
-        elseif (!file_exists($videoId))
+        } elseif (!file_exists($videoId)) {
             $options['video'] = $videoId;
-        else
+        } else {
             $options['video'] = new \CURLFile(
                 $videoId,
                 mime_content_type($videoId),
                 basename($videoId),
             );
+        }
 
         $response = $this->send(
             $this->sendVideoUrl,
             $options,
         );
-        if (is_a($options['video'], \CURLFile::class))
+        if (is_a($options['video'], \CURLFile::class)) {
             $this->mediaCache->write($videoId, $response['video']['file_id']);
+        }
         $this->logger->info(
             'Video ({video}) is successfully sent to {chatId}',
             [
@@ -485,15 +459,5 @@ class TelegramBot implements LoggerAwareInterface
               'where' => $where,
             ],
         );
-    }
-
-    public function registerKeyboard(string $name, array $keyboard)
-    {
-        $this->keyboards[$name] = $keyboard;
-    }
-
-    public function registerInlineKeyboard(string $name, array $keyboard)
-    {
-        $this->inlineKeyboards[$name] = $keyboard;
     }
 }

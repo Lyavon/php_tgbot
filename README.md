@@ -170,3 +170,14 @@ the script is runnning.
 
 __ArrayMediaCache__ implements the __MediaCache__ interface, and other
 __MediaCache__ implementations may be passed on bot construction.
+
+There's also a straightforward implementations of the __TmpfileMediaCache__ and
+__FilesystemMediaCache__. Allowing to save _file_id_ cache in the temporary
+directory or on the filesystem respectively. __TmpfileMediaCache__ accepts its
+id as a string, __FilesystemMediaCache__ accepts path where to store.
+
+The major downside to use __TmpfileMediaCache__ and __FilesystemMediaCache__ is
+that files are synced only during objects contruction and destruction. If sript
+cannot perform cleanup, cache will be lost.
+
+
