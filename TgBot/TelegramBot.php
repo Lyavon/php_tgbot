@@ -8,6 +8,8 @@ use Psr\Log\LoggerAwareTrait;
 use Psr\Log\NullLogger;
 
 use Lyavon\TgBot\TelegramBotError;
+use Lyavon\TgBot\MediaCache\MediaCache;
+use Lyavon\TgBot\MediaCache\ArrayMediaCache;
 
 class TelegramBot implements LoggerAwareInterface
 {
@@ -27,26 +29,35 @@ class TelegramBot implements LoggerAwareInterface
     protected array $callbackQueryFilters;
     protected array $chatMemberFilters;
 
+    protected array $keyboards;
+    protected array $inlineKeyboards;
+
+    protected MediaCache $mediaCache;
 
     public function __construct(
         string $token,
         array $allowedUpdates = [],
         LoggerInterface $logger = new NullLogger(),
-    )
-    {
+        MediaCache $mediaCache = new ArrayMediaCache(),
+    ) {
         $this->allowedUpdates = json_encode($allowedUpdates, JSON_OBJECT_AS_ARRAY);
         $this->getUpdatesUrl = 'https://api.telegram.org/bot' . $token . '/getUpdates';
-        $this->sendMessageUrl = 'https://api.telegram.org/bot' . $token . '/sendMessage?';
-        $this->sendVideoUrl = 'https://api.telegram.org/bot' . $token . '/sendVideo?';
+        $this->sendMessageUrl = 'https://api.telegram.org/bot' . $token . '/sendMessage';
+        $this->sendVideoUrl = 'https://api.telegram.org/bot' . $token . '/sendVideo';
         $this->getFileUrl = 'https://api.telegram.org/bot' . $token . '/getFile?';
         $this->fileDownloadUrl = 'https://api.telegram.org/file/bot' . $token . '/';
+        $this->sendPhotoUrl = 'https://api.telegram.org/bot' . $token . '/sendPhoto';
 
         $this->messageFilters = [];
         $this->callbackQueryFilters = [];
         $this->chatMemberFilters = [];
         $this->updateOffset = null;
 
+        $this->keyboards = [];
+        $this->inlineKeyboards = [];
+
         $this->logger = $logger;
+        $this->mediaCache = $mediaCache;
     }
 
     protected function fetchUpdates(): array|false
@@ -223,32 +234,87 @@ class TelegramBot implements LoggerAwareInterface
     }
 
 
-    public function sendMessage(
-        string $chatId,
-        string|Stringable $text,
-        array $markup=[],
-    ): void
+    protected function send(string $url, array $args): array
     {
-        $queryParameters = [
-          'chat_id' => $chatId,
-          'text' => $text,
-        ];
-        if ($markup) {
-            $queryParameters['reply_markup'] =
-              json_encode($markup, JSON_UNESCAPED_UNICODE);
+        $handle = curl_init($url);
+        if (!$handle) {
+            throw new TelegramBotError(
+                "Can't use $url",
+            );
         }
 
-        $url = $this->sendMessageUrl . http_build_query($queryParameters);
-        $response = file_get_contents($url);
-        if (!$response)
+        if (!curl_setopt(
+            $handle,
+            CURLOPT_RETURNTRANSFER,
+            true,
+        )) {
             throw new TelegramBotError(
-                "Can't send message ($text) to $chatId",
+                "Won't be able to acquire response",
             );
+        }
+
+        if (!curl_setopt(
+            $handle,
+            CURLOPT_POSTFIELDS,
+            $args,
+        )) {
+            throw new TelegramBotError(
+                "Can't setup request for the args "
+                . print_r($args, true)
+            );
+        }
+
+        $response = curl_exec($handle);
+        curl_close($handle);
+        if (!$response) {
+            throw new TelegramBotError(
+                "Can't get response for $url => "
+                . print_r($args, true),
+            );
+        }
+
         $decodedResponse = json_decode($response, JSON_OBJECT_AS_ARRAY);
-        if ($decodedResponse['ok'] !== true)
+        if ($decodedResponse['ok'] !== true) {
             throw new TelegramBotError(
-                "Can't send message ($text) to $chatId",
+                "Error response "
+                . print_r($decodedResponse, true)
+                . " For $url => "
+                . print_r($args, true),
             );
+        }
+        return $decodedResponse['result'];
+    }
+
+    public function sendMessage(
+        string $chatId,
+        string $text,
+        array|string $markup = [],
+        array $options = [],
+    ): void {
+        $options['chat_id'] = $chatId;
+        $options['text'] = $text;
+        if ($markup) {
+            if (is_a($markup, 'array')) {
+                $options['reply_markup'] =
+                  json_encode($markup, JSON_UNESCAPED_UNICODE);
+            } elseif (is_a($markup, 'string')) {
+                if (array_has_key($markup)) {
+                    $options = $this->keyboards[$markup];
+                } else {
+                    $this->logger->error(
+                        "No keyboard corresponding to {keyboard}",
+                        [
+                            'keyboard' => $markup,
+                        ],
+                    );
+                }
+            }
+        }
+
+        $response = $this->send(
+            $this->sendMessageUrl,
+            $options,
+        );
 
         $this->logger->info(
             'Message ({text}) is successfully sent to {chatId}',
@@ -259,32 +325,116 @@ class TelegramBot implements LoggerAwareInterface
         );
     }
 
-    /*
-     * videoId can be either url or file id on telegram servers. Only mp4.
-     */
-    public function sendVideo(string $chatId, string $videoId): void
-    {
-        $request = $this->sendVideoUrl . http_build_query(
-            [
-              'chat_id' => $chatId,
-              'video' => $videoId,
-            ],
-        );
-        $response = file_get_contents($request);
-        if (!$response)
-            throw new TelegramBotError(
-                "Can't sent video $videoId to $chatId",
-            );
-        $decodedResponse = json_decode($response, JSON_OBJECT_AS_ARRAY);
-        if ($decodedResponse['ok'] !== true)
-            throw new TelegramBotError(
-                "Can't sent video $videoId to $chatId",
+    public function sendPhoto(
+        string $chatId,
+        string $imgId,
+        string $caption = null,
+        array|string $markup = [],
+        array $options = [],
+    ): void {
+        $options['chat_id'] = $chatId;
+        if ($caption) {
+            $options['caption'] = $caption;
+        }
+
+        if ($markup) {
+            if (is_a($markup, 'array')) {
+                $options['reply_markup'] =
+                  json_encode($markup, JSON_UNESCAPED_UNICODE);
+            } elseif (is_a($markup, 'string')) {
+                if (array_has_key($markup)) {
+                    $options['reply_markup'] = $this->keyboards[$markup];
+                } else {
+                    $this->logger->error(
+                        "No keyboard corresponding to {keyboard}",
+                        [
+                            'keyboard' => $markup,
+                        ],
+                    );
+                }
+            }
+        }
+
+        $cachedId = ($this->mediaCache)($imgId);
+        if ($cachedId)
+            $options['photo'] = $cachedId;
+        elseif (!file_exists($imgId))
+            $options['photo'] = $imgId;
+        else
+            $options['photo'] = new \CURLFile(
+                $imgId,
+                mime_content_type($imgId),
+                basename($imgId),
             );
 
+        $response = $this->send(
+            $this->sendPhotoUrl,
+            $options,
+        );
+        if (is_a($options['photo'], \CURLFile::class))
+            $this->mediaCache->write($imgId, $response['photo'][0]['file_id']);
+
         $this->logger->info(
-            'Video {videoId} is successfully sent to {chatId}',
+            'Photo ({img}) is successfully sent to {chatId}',
             [
-              'videoId' => $videoId,
+              'img' => $imgId,
+              'chatId' => $chatId,
+            ],
+        );
+    }
+
+    public function sendVideo(
+        string $chatId,
+        string $videoId,
+        string $caption = null,
+        string|array $markup = [],
+        array $options = [],
+    ): void {
+        $options['chat_id'] = $chatId;
+        if ($caption) {
+            $options['caption'] = $caption;
+        }
+
+        if ($markup) {
+            if (is_a($markup, 'array')) {
+                $options['reply_markup'] =
+                  json_encode($markup, JSON_UNESCAPED_UNICODE);
+            } elseif (is_a($markup, 'string')) {
+                if (array_has_key($markup)) {
+                    $options['reply_markup'] = $this->keyboards[$markup];
+                } else {
+                    $this->logger->error(
+                        "No keyboard corresponding to {keyboard}",
+                        [
+                            'keyboard' => $markup,
+                        ],
+                    );
+                }
+            }
+        }
+
+        $cachedId = ($this->mediaCache)($videoId);
+        if ($cachedId)
+            $options['video'] = $cachedId;
+        elseif (!file_exists($videoId))
+            $options['video'] = $videoId;
+        else
+            $options['video'] = new \CURLFile(
+                $videoId,
+                mime_content_type($videoId),
+                basename($videoId),
+            );
+
+        $response = $this->send(
+            $this->sendVideoUrl,
+            $options,
+        );
+        if (is_a($options['video'], \CURLFile::class))
+            $this->mediaCache->write($videoId, $response['video']['file_id']);
+        $this->logger->info(
+            'Video ({video}) is successfully sent to {chatId}',
+            [
+              'video' => $videoId,
               'chatId' => $chatId,
             ],
         );
@@ -298,16 +448,18 @@ class TelegramBot implements LoggerAwareInterface
             ],
         );
         $response = file_get_contents($request);
-        if (!$response)
+        if (!$response) {
             throw new TelegramBotError(
                 "Can't obtain info about file $fileId",
             );
+        }
 
         $decodedResponse = json_decode($response, JSON_OBJECT_AS_ARRAY);
-        if ($decodedResponse['ok'] !== true)
+        if ($decodedResponse['ok'] !== true) {
             throw new TelegramBotError(
                 "Can't obtain info about file $fileId",
             );
+        }
 
         $this->logger->info(
             "Obtained info about file {fileId} ({result})",
@@ -319,10 +471,11 @@ class TelegramBot implements LoggerAwareInterface
 
         $request = $this->fileDownloadUrl . $file['result']['file_path'];
         $rc = file_put_contents($where, fopen($request, 'r'));
-        if (!$rc)
+        if (!$rc) {
             throw new TelegramBotError(
                 "Can't save file $fileId ($request) to $where",
             );
+        }
 
         $this->logger->info(
             "Saved file {fileId} {fileDownloadUrl} to {where}",
@@ -332,5 +485,15 @@ class TelegramBot implements LoggerAwareInterface
               'where' => $where,
             ],
         );
+    }
+
+    public function registerKeyboard(string $name, array $keyboard)
+    {
+        $this->keyboards[$name] = $keyboard;
+    }
+
+    public function registerInlineKeyboard(string $name, array $keyboard)
+    {
+        $this->inlineKeyboards[$name] = $keyboard;
     }
 }

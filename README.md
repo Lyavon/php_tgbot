@@ -5,10 +5,13 @@ This repository contains lightweight telegram bot implementation.
 Current implementation is capable of:
 - Update requesing
 - Message sending
+- Video sending
+- Photo sending
 - Message receiving (filters + default callback)
 - Callback query receiving (filters + default callback)
 - Chat member update receiving (filters + default callback)
 - psr-3 compatible logger usage
+- Caching file_id of sent attachments
 
 ## Installation
 
@@ -32,19 +35,21 @@ namespace. The implementation aims to be as lightweight as possible, therefore
 telegram objects such as messages are basically json-decoded entities. See
 Telegram Bot API for their descripton.
 
+
 ```php
 <?php
 
 use Lyavon\TgBot\TelegramBot;
-#use Psr\Log\NullLogger; // Or any other psr-3-compatible logger if needed
+# use Lyavon\TgBot\ArrayMediaCache; // See later explanation
+# use Psr\Log\NullLogger; // Or any other psr-3-compatible logger if needed
 
 $token = 'yourSecretToken';
-$bot = new TelegramBot($token); // $allowedUpdates is optional, an array of
-                                // strings repreenting update types should be
-                                // provided, defaults are described in the
-                                // Telegram Bot API
-                                // $logger is optional, NullLogger is used by
-                                // default
+$bot = new TelegramBot(
+    token: $token, # String given by the BotFather
+    allowedUpdates: [], # Supported by bot are used by default
+    logger: new NullLogger(), # Any psr-3-compatible logger, NullLogger by
+                              # default
+    mediaCache: new ArrayMediaCache(), # See below, ArrayMediaCache by default
 
 # NullLogger is used if custom one is not provided. TelegramBot implements
 # LoggerAwareInterface.
@@ -53,12 +58,14 @@ $bot = new TelegramBot($token); // $allowedUpdates is optional, an array of
 
 ```
 
-### Sending messages
+### Sending Messages
 
-Messages can be sent with _public function sendMessage(string $chatId,
-string|Stringable $text, array $markup = []): void_. __$markup__ is an array to
-be json-encoded with any content supported by telegram Bot API. Throws
-__TelegramBotError__ on error (__RuntimeError__).
+Messages can be sent with _public function sendMessage(string $chatId, string
+$text, array|string $markup = [], array $options = [],): void_.
+- __$markup__ is an array to be json-encoded or already encoded strings with
+  any content supported by telegram Bot API.
+- __$options__ are any other options supported by the Bot API.
+- Throws __TelegramBotError__ on error (__RuntimeError__).
 
 ```php
 <?php
@@ -67,17 +74,37 @@ $bot->sendMessage('myTelegramId', 'Hello bot world!');
 
 ```
 
-### Sending videos
+### Sending Photos
 
-Messages can be sent with _public function sendVideo(string $chatId, string
-$videoId): void_. $videoId can be either URL or video id on the telegram
-server. Only mp4 in supported for now in the Telegram API. Throws
-__TelegramBotError__ on error (__RuntimeError__).
+Photos can be sent with _ public function sendPhoto( string $chatId, string
+$imgId, string $caption = null, array|string $markup = [], array $options =
+[],): void_
+- __$markup__ is an array to be json-encoded or already encoded strings with
+  any content supported by telegram Bot API.
+- __$options__ are any other options supported by the Bot API.
+- Throws __TelegramBotError__ on error (__RuntimeError__).
 
 ```php
 <?php
 
-$bot->sendVideo('myTelegramId', 'https://myserver.xyz/coolvideo.mp4');
+$bot->sendPhoto('myTelegramId', 'url|photoId|localPath', 'caption');
+
+```
+
+### Sending Videos
+
+Videos can be sent with _public function sendVideo( string $chatId, string
+$videoId, string $caption = null, string|array $markup = [], array $options =
+[],): void_
+- __$markup__ is an array to be json-encoded or already encoded strings with
+  any content supported by telegram Bot API.
+- __$options__ are any other options supported by the Bot API.
+- Throws __TelegramBotError__ on error (__RuntimeError__).
+
+```php
+<?php
+
+$bot->sendVideo('myTelegramId', 'url|videoId|localPath', 'caption');
 
 ```
 
@@ -95,7 +122,7 @@ $bot->downloadFile('fileId', 'tmp/bot/new-file');
 
 ```
 
-### Handling messages
+### Handling Messages
 
 Messages can be handled either by Extending the __TelegramBot__ class and
 implementing _public function onMessage(array $message): bool_ or by
@@ -123,7 +150,7 @@ Handling the above updated is similar to message handling, except functions name
 - onCallbakQuery, registerCallbackQueryFilter for callback query updates
 - onChanMember, registerChatMemberFilter for chat member updates
 
-### Receiving events
+### Receiving Events
 
 __TelegramBot__ for now can only be used with polling mechanism. This method
 checks and handles supported upates until external termination or uncaught
@@ -135,3 +162,11 @@ internal error.
 $bot->mainloop();
 
 ```
+
+### Caching Sent Media
+__TelegramBot__ by attempts to cache file_id of photos and video sent, yet by
+default it is done by __ArrayMediaCache__ that stores them only during while
+the script is runnning.
+
+__ArrayMediaCache__ implements the __MediaCache__ interface, and other
+__MediaCache__ implementations may be passed on bot construction.
