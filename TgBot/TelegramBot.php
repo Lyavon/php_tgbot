@@ -29,6 +29,7 @@ class TelegramBot implements LoggerAwareInterface
     protected array $messageFilters;
     protected array $callbackQueryFilters;
     protected array $chatMemberFilters;
+    protected array $customEventFilters;
 
     protected MediaCache $mediaCache;
 
@@ -50,6 +51,7 @@ class TelegramBot implements LoggerAwareInterface
         $this->messageFilters = [];
         $this->callbackQueryFilters = [];
         $this->chatMemberFilters = [];
+        $this->customEventFilters = [];
         $this->updateOffset = null;
 
         $this->logger = $logger;
@@ -137,6 +139,34 @@ class TelegramBot implements LoggerAwareInterface
     }
 
 
+    public function registerCustomEventFilter(callable $filter): void
+    {
+        array_push($this->customEventFilters, $filter);
+    }
+
+    public function dispatchCustomEvent(array $options): bool
+    {
+        try {
+            foreach ($this->customEventFilters as $filter)
+                if ($filter($options))
+                    return true;
+            return $this->onMessage($message);
+        } catch (\Exception $e) {
+            $this->logger->error(
+                "Exception during custom filtering occured ({exception})",
+                [
+                  'exception' => $e,
+                ],
+            );
+            return false;
+        }
+    }
+
+    public function onCustomEvent(array $options): bool
+    {
+        return false;
+    }
+
     public function registerMessageFilter(callable $filter): void
     {
         array_push($this->messageFilters, $filter);
@@ -145,11 +175,9 @@ class TelegramBot implements LoggerAwareInterface
     protected function dispatchMessage(array $message): bool
     {
         try {
-            foreach ($this->messageFilters as $filter) {
-                if ($filter($message)) {
+            foreach ($this->messageFilters as $filter)
+                if ($filter($message))
                     return true;
-                }
-            }
             return $this->onMessage($message);
         } catch (\Exception $e) {
             $this->logger->error(
@@ -176,11 +204,9 @@ class TelegramBot implements LoggerAwareInterface
     protected function dispatchCallbackQuery(array $message): bool
     {
         try {
-            foreach ($this->callbackQueryFilters as $filter) {
-                if ($filter($message)) {
+            foreach ($this->callbackQueryFilters as $filter)
+                if ($filter($message))
                     return true;
-                }
-            }
             return $this->onCallbackQuery($message);
         } catch (\Exception $e) {
             $this->logger->error(

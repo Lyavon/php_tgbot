@@ -9,6 +9,7 @@ Current implementation is capable of:
 - Video sending
 - Photo sending
 - Message receiving (filters + default callback)
+- Dispatching custom events (filters + default callback)
 - Callback query receiving (filters + default callback)
 - Chat member update receiving (filters + default callback)
 - psr-3 compatible logger usage
@@ -181,6 +182,7 @@ $bot->mainloop();
 ```
 
 ### Caching Sent Media
+
 __TelegramBot__ by attempts to cache file_id of photos and video sent, yet by
 default it is done by __ArrayMediaCache__ that stores them only during while
 the script is runnning.
@@ -197,4 +199,27 @@ The major downside to use __TmpfileMediaCache__ and __FilesystemMediaCache__ is
 that files are synced only during objects contruction and destruction. If sript
 cannot perform cleanup, cache will be lost.
 
+### Custom Events
 
+Sometimes it is useful to react stereotypically on differing input. This can be
+easily done with custom event filtering.
+
+One can either define his own filters and register them or subclass
+__TelegramBot__ and implement _public function onCustomEvent(array $options):
+bool_.
+
+Custom event filtering works almost identical to other event filtering but
+all the arguments ought to be passed inside an array of custom structure, e.g:
+
+```php
+<?php
+
+$bot->registerCustomEventFilter(function (array $options) use ($bot) {
+    if (!array_has_key('message', $options)
+        or !array_has_key('chatId', $options)
+    )
+        return false;
+    $bot->sendMessage($options['chatId'], $options['message']);
+    return true;
+});
+```

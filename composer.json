@@ -1,6 +1,6 @@
 {
   "name": "lyavon/tgbot",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "library",
   "description": "Telegram bot",
   "homepage": "https://github.com/Lyavon/php_tgbot",
