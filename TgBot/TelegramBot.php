@@ -19,6 +19,7 @@ class TelegramBot implements LoggerAwareInterface
     protected string $getFileUrl;
     protected string $getUpdatesUrl;
     protected string $sendMessageUrl;
+    protected string $deleteMessageUrl;
     protected string $sendVideoUrl;
 
 
@@ -40,6 +41,7 @@ class TelegramBot implements LoggerAwareInterface
         $this->allowedUpdates = json_encode($allowedUpdates, JSON_OBJECT_AS_ARRAY);
         $this->getUpdatesUrl = 'https://api.telegram.org/bot' . $token . '/getUpdates';
         $this->sendMessageUrl = 'https://api.telegram.org/bot' . $token . '/sendMessage';
+        $this->deleteMessageUrl = 'https://api.telegram.org/bot' . $token . '/deleteMessage';
         $this->sendVideoUrl = 'https://api.telegram.org/bot' . $token . '/sendVideo';
         $this->getFileUrl = 'https://api.telegram.org/bot' . $token . '/getFile?';
         $this->fileDownloadUrl = 'https://api.telegram.org/file/bot' . $token . '/';
@@ -276,15 +278,19 @@ class TelegramBot implements LoggerAwareInterface
                 . print_r($args, true),
             );
         }
-        return $decodedResponse['result'];
+        return is_array($decodedResponse['result'])
+            ? $decodedResponse['result']
+            : [];
     }
 
     public function sendMessage(
         string $chatId,
         string $text,
         array|string $markup = [],
-        array $options = [],
-    ): void {
+        array $options = [
+            'parse_mode' => 'MarkdownV2',
+        ],
+    ): array {
         $options['chat_id'] = $chatId;
         $options['text'] = $text;
         if ($markup) {
@@ -301,12 +307,22 @@ class TelegramBot implements LoggerAwareInterface
             $this->sendMessageUrl,
             $options,
         );
-
         $this->logger->info(
             'Message ({text}) is successfully sent to {chatId}',
             [
               'text' => $text,
               'chatId' => $chatId,
+            ],
+        );
+        return $response;
+    }
+
+    public function deleteMessage(string $chatId, string $messageId): void {
+        $response = $this->send(
+            $this->deleteMessageUrl,
+            [
+                'chat_id' => $chatId,
+                'message_id' => $messageId,
             ],
         );
     }
@@ -316,8 +332,10 @@ class TelegramBot implements LoggerAwareInterface
         string $imgId,
         string $caption = null,
         array|string $markup = [],
-        array $options = [],
-    ): void {
+        array $options = [
+            'parse_mode' => 'MarkdownV2',
+        ],
+    ): array {
         $options['chat_id'] = $chatId;
         if ($caption) {
             $options['caption'] = $caption;
@@ -361,6 +379,7 @@ class TelegramBot implements LoggerAwareInterface
               'chatId' => $chatId,
             ],
         );
+        return $response;
     }
 
     public function sendVideo(
@@ -368,8 +387,10 @@ class TelegramBot implements LoggerAwareInterface
         string $videoId,
         string $caption = null,
         string|array $markup = [],
-        array $options = [],
-    ): void {
+        array $options = [
+            'parse_mode' => 'MarkdownV2',
+        ],
+    ): array {
         $options['chat_id'] = $chatId;
         if ($caption) {
             $options['caption'] = $caption;
@@ -412,6 +433,7 @@ class TelegramBot implements LoggerAwareInterface
               'chatId' => $chatId,
             ],
         );
+        return $response;
     }
 
     public function downloadFile(string $fileId, string $where): void

@@ -5,6 +5,7 @@ This repository contains lightweight telegram bot implementation.
 Current implementation is capable of:
 - Update requesing
 - Message sending
+- Message deleting
 - Video sending
 - Photo sending
 - Message receiving (filters + default callback)
@@ -61,10 +62,11 @@ $bot = new TelegramBot(
 ### Sending Messages
 
 Messages can be sent with _public function sendMessage(string $chatId, string
-$text, array|string $markup = [], array $options = [],): void_.
+$text, array|string $markup = [], array $options = [],): array_.
 - __$markup__ is an array to be json-encoded or already encoded strings with
   any content supported by telegram Bot API.
 - __$options__ are any other options supported by the Bot API.
+- Returns array of everything telegram sends as the result.
 - Throws __TelegramBotError__ on error (__RuntimeError__).
 
 ```php
@@ -74,14 +76,28 @@ $bot->sendMessage('myTelegramId', 'Hello bot world!');
 
 ```
 
+### Deleting Messages
+
+Messages can be deleted with _public function sendMessage(string $chatId, string
+$messageId,): void_.
+- Throws __TelegramBotError__ on error (__RuntimeError__).
+
+```php
+<?php
+
+$bot->deleteMessage('myTelegramId', 'myMessageId');
+
+```
+
 ### Sending Photos
 
 Photos can be sent with _ public function sendPhoto( string $chatId, string
 $imgId, string $caption = null, array|string $markup = [], array $options =
-[],): void_
+[],): array_
 - __$markup__ is an array to be json-encoded or already encoded strings with
   any content supported by telegram Bot API.
 - __$options__ are any other options supported by the Bot API.
+- Returns array of everything telegram sends as the result.
 - Throws __TelegramBotError__ on error (__RuntimeError__).
 
 ```php
@@ -95,10 +111,11 @@ $bot->sendPhoto('myTelegramId', 'url|photoId|localPath', 'caption');
 
 Videos can be sent with _public function sendVideo( string $chatId, string
 $videoId, string $caption = null, string|array $markup = [], array $options =
-[],): void_
+[],): array_
 - __$markup__ is an array to be json-encoded or already encoded strings with
   any content supported by telegram Bot API.
 - __$options__ are any other options supported by the Bot API.
+- Returns array of everything telegram sends as the result.
 - Throws __TelegramBotError__ on error (__RuntimeError__).
 
 ```php
