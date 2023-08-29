@@ -20,42 +20,109 @@
 
 namespace Lyavon\TgBot\MediaCache;
 
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
 use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
-class ArrayMediaCache implements MediaCache
+/**
+ * ArrayMediaCache implementation stores all the remote ids inside an array
+ * that only lasts during script invocation.
+ *
+ * Might be suitable for long running scripts (e.g. using {@link
+ * https://core.telegram.org/bots/api#getupdates polling mechanism}).
+ *
+ * Cache interactions may be inspected by providing logger that doesn't supress
+ * debug output (NullLogger is used by default).
+ */
+class ArrayMediaCache implements MediaCache, LoggerAwareInterface
 {
+    use LoggerAwareTrait;
+
+    /**
+     * @var array $cache Internal associations storage.
+     */
     protected array $cache = [];
 
-    public function write(string $localId, string $remoteId): void
+    /**
+     * Setup logger on object creation.
+     *
+     * @param LoggerInterface $logger Logger to use (NullLogger by default).
+     */
+    public function __construct(LoggerInterface $logger = new NullLogger())
     {
-        if (!file_exists($localId)) {
+        $this->setLogger($logger);
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function store(string $localPath, string $remoteId): void
+    {
+        if (!file_exists($localPath)) {
+            $this->logger->warning(
+                "Attempt to store non existing file {localPath} in cache as {remoteId}",
+                [
+                    'localPath' => $localPath,
+                    'remoteId' => $remoteId,
+                ],
+            );
             return;
         }
 
-        $stat = stat($localId);
-        $this->cache[$localId] = [
+        $stat = stat($localPath);
+        $this->cache[$localPath] = [
             'remoteId' => $remoteId,
             'timestamp' => $stat['mtime'],
         ];
+        $this->logger->debug(
+            "File {localPath} is cached as {remoteId}",
+            [
+                'localPath' => $localPath,
+                'remoteId' => $remoteId,
+            ],
+        );
     }
 
-    public function __invoke(string $id): string|null
+    /**
+     * @inheritdoc
+     */
+    public function __invoke(string $localPath): string|null
     {
         if (!array_key_exists($id, $this->cache)) {
             return null;
         }
 
         if (!file_exists($id)) {
+            $this->logger->warning(
+                "Attempt to get file {localPath} that doesn't exist locally from cache",
+                [
+                    'localPath' => $localPath,
+                ],
+            );
             return null;
         }
 
         $stat = stat($id);
         $file = $this->cache[$id];
         if ($stat['mtime'] == $file['timestamp']) {
+            $this->logger->debug(
+                "Get {localPath} from cache as {remoteId}",
+                [
+                    'localPath' => $localPath,
+                    'remoteId' => $file['remoteId'],
+                ],
+            );
             return $file['remoteId'];
         }
 
         unset($this->cache[$id]);
+        $this->logger->debug(
+            "Dropped cache for {localPath} due to local version change",
+            [
+                'localPath' => $localPath,
+            ],
+        );
         return null;
     }
 }

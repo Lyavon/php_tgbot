@@ -20,8 +20,36 @@
 
 namespace Lyavon\TgBot\MediaCache;
 
+/**
+ * MediaCache is an interface for storing identifiers for files that are
+ * already uploaded to a server by a Telergam bot.
+ *
+ * Since cache might expire (i.e. local file is changed during script lifetime
+ * or in between invokations), MediaCache treats local paths as unique local
+ * identifiers.
+ *
+ * It doesn't seem meaningful to restrict MediaCache usage as singleton:
+ * - It is meant to be internal for the telegram bot.
+ * - Unlikely, but there might be several bots used in a script.
+ *
+ * @link https://core.telegram.org/api/files Uploading and Downloading Files.
+ */
 interface MediaCache
 {
-    public function write(string $localId, string $remoteId): void;
-    public function __invoke(string $id): string|null;
+    /**
+     * Store new media association.
+     *
+     * @param string $localPath Local path for the media.
+     * @param string $remoteId Media identifier for the Telegram.
+     */
+    public function store(string $localPath, string $remoteId): void;
+
+    /**
+     * Obtain Remote identifier for the given media.
+     *
+     * @param string $localPath Local path for the media.
+     * @return string|null Media identifier for the Telegram or null if the
+     * media is not uploaded yet or expired.
+     */
+    public function __invoke(string $localPath): string|null;
 }

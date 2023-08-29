@@ -20,40 +20,100 @@
 
 namespace Lyavon\TgBot\MediaCache;
 
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+
 use Lyavon\TgBot\MediaCache\ArrayMediaCache;
 
+/**
+ * TempfileMediaCache is a type of MediaCache that accumulates it during server
+ * uptime.
+ *
+ * The latter is achieved by saving results inside a temporary directory on
+ * script termination and restoring it on script startup.
+ *
+ * For perfomance reasons synchronisation between FS an RAM happens on instance
+ * destruction. Therefore, abnormal script exit may result in cache loss.
+ *
+ * __N.B.! In case of abnormal exit cache woldn't be saved.__
+ */
 class TempfileMediaCache extends ArrayMediaCache
 {
-    protected string $path;
+    /**
+     * @var $id Unique cache storage indentifier (has to be valid filename).
+     */
+    protected string $id;
 
-    public function __construct(string $id)
+    /**
+     * Restore current cache state on object creation.
+     *
+     * @param string $id Unique cache identifier (has to be valid filename).
+     * @param LoggerInterface $logger Logger to be used (NullLogger by default).
+     */
+    public function __construct(string $id, LoggerInterface $logger = new NullLogger())
     {
-        $this->path = sys_get_temp_dir();
+        parent::__construct($logger);
+
+        $this->id = $id;
+
+        $path = sys_get_temp_dir();
         if (strpos($this->path, '/') !== false) {
-            $this->path .= '/' . $id;
+            $path .= '/' . $id;
         } else {
-            $this->path .= '\\' . $id;
+            $path .= '\\' . $id;
         }
 
-        if (!file_exist($this->path)) {
+        if (!file_exist($path)) {
+            $this->logger->debug(
+                "Cache {id} ({path}) is currently empty",
+                [
+                    'id' => $id,
+                    'path' => $path,
+                ],
+            );
             return;
         }
 
-        $cache = file_get_contents($this->path);
-        if (!$cache) {
+        $encodedCache = file_get_contents($this->path);
+        if (!$encodedCache) {
+            $this->logger->debug(
+                "Cache {id} ({path}) is currently empty",
+                [
+                    'id' => $id,
+                    'path' => $path,
+                ],
+            );
             return;
         }
 
-        $decodedCache = json_decode($cache, true);
+        $decodedCache = json_decode($encodedCache, true);
         if (!$decodedCache) {
+            $this->logger->error(
+                "Cache {id} ({path}) can't be decoded",
+                [
+                    'id' => $id,
+                    'path' => $path,
+                ],
+            );
             return;
         }
 
         $this->cache = $decodedCache;
     }
 
+    /**
+     * Save current cache state on object deletion.
+     */
     public function __destruct()
     {
-        file_put_contents($this->path, json_encode($this->cache));
+        $path = sys_get_temp_dir();
+        if (strpos($this->path, '/') !== false) {
+            $path .= '/' . $id;
+        } else {
+            $path .= '\\' . $id;
+        }
+
+        file_put_contents($path, json_encode($this->cache));
+        parent::__destruct();
     }
 }

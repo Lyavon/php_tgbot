@@ -20,35 +20,89 @@
 
 namespace Lyavon\TgBot\MediaCache;
 
-use Lyavon\TgBot\MediaCache\ArrayMediaCache;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
+use Lyavon\TgBot\MediaCache\ArrayMediaCache;
+use Lyavon\TgBot\TelegramBotError;
+
+/**
+ * FilesystemMediaCache is designed to be used as persistent cache that may
+ * last up to filesystem lifetime.
+ *
+ * Obviously, server is expected to have write access to a filesystem at the
+ * given location.
+ *
+ * For perfomance reasons synchronisation between FS an RAM happens on instance
+ * destruction. Therefore, abnormal script exit may result in cache loss.
+ *
+ * __N.B.! In case of abnormal exit cache woldn't be saved.__
+ */
 class FilesystemMediaCache extends ArrayMediaCache
 {
+    /**
+     * @var string $path Cache file path in local filesystem.
+     */
     protected string $path;
 
-    public function __construct(string $path)
+    /**
+     * Create FilesystemMediaCache.
+     *
+     * @param string $path Cache file path in local filesystem.
+     * @param LoggerInterface $logger Logger to be used (NullLogger by default).
+     * @throws TelegramBotError On cache decode error.
+     */
+    public function __construct(string $path, LoggerInterface $logger = new NullLogger())
     {
+        parent::__construct($logger);
+
         $this->path = $path;
-
         if (!file_exist($this->path)) {
+            $this->logger->debug(
+                "Cache {path} is currently empty",
+                [
+                    'path' => $path,
+                ],
+            );
             return;
         }
 
-        $cache = file_get_contents($this->path);
-        if (!$cache) {
+        $encodedCache = file_get_contents($this->path);
+        if (!$encodedCache) {
+            $this->logger->debug(
+                "Cache {path} is currently empty",
+                [
+                    'path' => $path,
+                ],
+            );
             return;
         }
 
-        $decodedCache = json_decode($cache, true);
+        $decodedCache = json_decode($encodedCache, true);
         if (!$decodedCache) {
-            return;
+            $this->logger->error(
+                "Cache {path} is either damaged or incorrect. Can't decode it.",
+                [
+                    'path' => $path,
+                ],
+            );
+            throw new TelegramBotError("Can't decode supposed cache ($path)");
         }
 
         $this->cache = $decodedCache;
     }
 
+    /**
+     * Update cache on object destuction.
+     */
     public function __destruct()
     {
         file_put_contents($this->path, json_encode($this->cache));
+        $this->logger->debug(
+            "Cache {path} is successfully synced",
+            [
+                'path' => $this->path,
+            ],
+        );
     }
 }

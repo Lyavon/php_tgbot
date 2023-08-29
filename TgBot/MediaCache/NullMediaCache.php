@@ -20,17 +20,60 @@
 
 namespace Lyavon\TgBot\MediaCache;
 
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+
 use Lyavon\TgBot\MediaCache\CachedFile;
 use Lyavon\TgBot\MediaCache\MediaCache;
 
-class NullMediaCache implements MediaCache
+/**
+ * MediaCache implementation that doesn't store any associations. Default
+ * option in case no other cache is set for a bot.
+ *
+ * Cache interactions may be inspected by providing logger that doesn't supress
+ * debug output (NullLogger is used by default).
+ */
+class NullMediaCache implements MediaCache, LoggerAwareInterface
 {
-    public function __invoke(string $id): string|null
+    use LoggerAwareTrait;
+
+    /**
+     * Setup logger on object creation.
+     *
+     * @param LoggerInterface $logger Logger to use (NullLogger by default).
+     */
+    public function __construct(LoggerInterface $logger = new NullLogger())
     {
+        $this->setLogger($logger);
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function __invoke(string $localPath): string|null
+    {
+        $this->logger->debug(
+            "Attempt to get {localPath} from cache",
+            [
+                'localPath' => $localPath,
+            ],
+        );
         return null;
     }
 
-    public function write(string $localId, string $remoteId): void
+    /**
+     * @inheritdoc
+     */
+    public function store(string $localPath, string $remoteId): void
     {
+        $this->logger->debug(
+            "Attempt to store {localPath} as {remoteId} to cache",
+            [
+                'localPath' => $localPath,
+                'remoteId' => $remoteId,
+            ],
+        );
     }
 }
