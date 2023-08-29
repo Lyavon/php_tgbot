@@ -1,3 +1,5 @@
+.phpdoc/
+documentation/
 vendor/
 composer.phar
 composer.lock

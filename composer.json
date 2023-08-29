@@ -19,5 +19,10 @@
     "psr-4": {
       "Lyavon\\TgBot\\": "TgBot"
     }
+  },
+  "scripts": {
+    "documentation": "sh scripts/documentation.sh",
+    "show-documentation": "sh scripts/show-documentation.sh",
+    "codestyle": "sh scripts/codestyle.sh"
   }
 }
